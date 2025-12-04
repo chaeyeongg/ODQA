@@ -8,7 +8,7 @@
 모듈을 이해하기 쉽도록 재구성했습니다.
 
 ```diff
-- 구현된 코드 상, data 경로는 run_experiment.py 기준 ../data 입니다. 참고해주세요!!
+- data 경로는 아래 프로젝트 구조를 참고해주세요.
 
   1. **test_pipeline.ipynb** 에서 셀을 하나씩 실행하며, odqa_pipeline.py의 로직을 이해할 수 있습니다.
   2. **./run_experiment.sh** 을 터미널에서 실행하여, train-eval-inference 전체 과정을 한 번에 실행할 수 있습니다.
@@ -36,5 +36,6 @@
 │   ├── trainer_qa.py       # QA Task용 Custom Trainer
 │   ├── utils_qa.py         # 데이터 전처리 및 후처리 유틸리티
 │   └── arguments.py        # 실행 인자(Arguments) 설정 파일
+├── data/                   # 대회에서 제공한 data 파일 (별도로 다운로드 해주세요)
 ├── outputs/                # 학습 결과 및 예측 파일 저장소 -> 코드 실행 후 자동 생성
 └── run_experiment.sh       # 전체 실험 자동 실행 스크립트 (Entry Point)
