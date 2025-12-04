@@ -1,0 +1,16 @@
+# 파이썬 캐시 파일 무시
+__pycache__/
+*.pyc
+
+# 데이터 및 결과물 무시 (용량이 큼)
+data/
+outputs/
+wandb/
+*.bin
+*.pt
+*.ckpt
+
+# 환경 설정 및 시스템 파일 무시
+.env
+.DS_Store
+.ipynb_checkpoints/
