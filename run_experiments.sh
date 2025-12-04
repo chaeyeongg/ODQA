@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}=== ODQA 실험 스크립트 ===${NC}"
 
 # 기본 경로 설정
-DATA_DIR="../data"
+DATA_DIR="./data"
 OUTPUT_DIR="./outputs"
 MODEL_NAME="klue/bert-base"
 
@@ -21,6 +21,7 @@ echo -e "\n${YELLOW}[1/4] MRC 학습 시작...${NC}"
 python baseline/train.py \
     --model_name_or_path ${MODEL_NAME} \
     --dataset_name ${DATA_DIR}/train_dataset \
+    --data_path ${DATA_DIR} \
     --output_dir ${OUTPUT_DIR}/train_result \
     --do_train \
     --do_eval \
