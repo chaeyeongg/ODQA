@@ -18,7 +18,7 @@ MODEL_NAME="klue/bert-base"
 # 1. MRC 학습 (Train)
 # ====================================================
 echo -e "\n${YELLOW}[1/4] MRC 학습 시작...${NC}"
-python train.py \
+python baseline/train.py \
     --model_name_or_path ${MODEL_NAME} \
     --dataset_name ${DATA_DIR}/train_dataset \
     --output_dir ${OUTPUT_DIR}/train_result \
@@ -44,7 +44,7 @@ echo -e "${GREEN}MRC 학습 완료!${NC}"
 # ====================================================
 echo -e "\n${YELLOW}[2/4] 순수 MRC 평가 시작...${NC}"
 # 학습된 모델 경로는 ${OUTPUT_DIR}/train_result 입니다.
-python inference.py \
+python baseline/inference.py \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/train_dataset \
     --output_dir ${OUTPUT_DIR}/eval_mrc \
@@ -63,7 +63,7 @@ echo -e "${GREEN}순수 MRC 평가 완료!${NC}"
 # 3. ODQA 평가 (Validation - Retrieval 포함)
 # ====================================================
 echo -e "\n${YELLOW}[3/4] ODQA 평가 시작 (Retrieval + MRC)...${NC}"
-python inference.py \
+python baseline/inference.py \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/train_dataset \
     --output_dir ${OUTPUT_DIR}/eval_odqa \
@@ -88,7 +88,7 @@ echo -e "${GREEN}ODQA 평가 완료!${NC}"
 echo -e "\n${YELLOW}[4/4] 최종 테스트 데이터 추론 시작...${NC}"
 
 # 변수 사용 및 에러 처리 추가
-python inference.py \
+python baseline/inference.py \
     --output_dir ${OUTPUT_DIR}/test_predict \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/test_dataset \
