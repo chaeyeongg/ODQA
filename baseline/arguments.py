@@ -122,3 +122,7 @@ class RetrievalArguments:
             "If None and retrieval_type='dense', falls back to model_name_or_path."
         },
     )
+    alpha: float = field(
+        default=0.5,
+        metadata={"help": "Weight for dense retrieval score in Hybrid retrieval (0.0 ~ 1.0)"},
+    )
