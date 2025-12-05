@@ -136,7 +136,7 @@ python baseline/inference.py \
     --per_device_eval_batch_size 16 \
     --data_path ${DATA_DIR} \
     --context_path wikipedia_documents.json \
-    --retrieval_type hybrid \
+    --retrieval_type dense \
     --top_k 10 \
     --eval_retrieval True
 
@@ -154,7 +154,7 @@ python baseline/inference.py \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/test_dataset \
     --do_predict \
-    --retrieval_type hybrid \
+    --retrieval_type dense \
     --top_k 10 \
     --data_path ${DATA_DIR} \
     --context_path wikipedia_documents.json

@@ -1,7 +1,7 @@
 # sweep.yaml
 program: baseline/inference.py
-name: roberta_hybrid_ratio_and_top_k
-project: Hybrid_ration_and_Top_k_Tune
+name: roberta_hybrid_ratio_and_top_k_with_HNM
+project: HNM_Hybrid_ration_and_Top_k_Tune
 method: bayes  # min/max 범위를 쓰려면 bayes나 random 추천
 metric:
   name: eval_exact_match
