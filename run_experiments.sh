@@ -63,14 +63,14 @@ if [ "$MODE" == "tune" ]; then
     # 임시 파일 삭제
     rm sweep_output.log
 
-    echo "Agent를 실행합니다. (Count: 5)"
+    echo "Agent를 실행합니다. (Count: 15)"
     
     # 4. Agent 실행
     # SWEEP_ID가 'wandb agent ...' 전체 명령어를 포함할 수도 있으므로 안전하게 처리
     if [[ "$SWEEP_ID" == wandb* ]]; then
-        $SWEEP_ID --count 5
+        $SWEEP_ID --count 15
     else
-        wandb agent $SWEEP_ID --count 5
+        wandb agent $SWEEP_ID --count 15
     fi
 
     echo -e "${GREEN}튜닝 완료! WandB 대시보드에서 최적의 파라미터를 확인하세요.${NC}"

@@ -530,12 +530,37 @@ class ODQAPipeline:
             return metrics
 
         logger.info("Running retrieval for ODQA evaluation...")
+        
         # 인덱스 생성 후 validation 질문 기준으로 검색 수행
-        if getattr(self.retriever, "p_embedding", None) is None:
-            self.retriever.build_index()
-        df = self.retriever.retrieve(
-            datasets["validation"], topk=self.retrieval_args.top_k
-        )
+        # (HybridRetrieval인 경우 build_index 메서드를 호출하도록 구현되어 있어야 함)
+        if getattr(self.retriever, "build_index", None):
+             self.retriever.build_index()
+        elif getattr(self.retriever, "p_embedding", None) is None:
+             # Sparse/Dense 등 개별 리트리버의 경우
+             # (단, SparseRetrieval의 경우 get_sparse_embedding 이름일 수 있음)
+             if hasattr(self.retriever, "get_sparse_embedding"):
+                 self.retriever.get_sparse_embedding()
+             elif hasattr(self.retriever, "build_index"):
+                 self.retriever.build_index()
+
+        # =========================================================
+        # Hybrid Retrieval일 경우 alpha 값 전달
+        # =========================================================
+        if self.retrieval_args.retrieval_type == "hybrid":
+            logger.info(f"Using Hybrid Retrieval with alpha={self.retrieval_args.alpha}")
+            df = self.retriever.retrieve(
+                datasets["validation"], 
+                topk=self.retrieval_args.top_k,
+                alpha=self.retrieval_args.alpha  # <--- alpha 인자 추가
+            )
+        else:
+            df = self.retriever.retrieve(
+                datasets["validation"], 
+                topk=self.retrieval_args.top_k
+            )
+        # =========================================================
+
+        
         if "original_context" in df.columns:
             df = df.drop(columns=["original_context"])
 
