@@ -35,7 +35,7 @@ class DataTrainingArguments:
     """
 
     dataset_name: Optional[str] = field(
-        default="../data/train_dataset",
+        default="./data/train_dataset",
         metadata={"help": "The name of the dataset to use."},
     )
     overwrite_cache: bool = field(
@@ -87,7 +87,7 @@ class RetrievalArguments:
     """
 
     data_path: str = field(
-        default="../data",
+        default="./data",
         metadata={"help": "Path to directory where wikipedia_documents.json is stored."},
     )
     context_path: str = field(
@@ -111,12 +111,12 @@ class RetrievalArguments:
     retrieval_type: str = field(
         default="sparse",
         metadata={
-            "help": "Retrieval method to use: 'sparse' or 'dense'. "
+            "help": "Retrieval method to use: 'sparse' or 'dense' or 'bm25' or  'hybrid. "
             "Additional methods can be added as needed."
         },
     )
     dense_model_name_or_path: Optional[str] = field(
-        default=None,
+        default="dragonkue/BGE-m3-ko",
         metadata={
             "help": "Model name or path to use for dense retrieval. "
             "If None and retrieval_type='dense', falls back to model_name_or_path."

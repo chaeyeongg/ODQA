@@ -18,7 +18,7 @@ from arguments import (
     DataTrainingArguments,
     RetrievalArguments,
 )
-from retrieval import SparseRetrieval, DenseRetrieval
+from retrieval import SparseRetrieval, DenseRetrieval, BM25Retrieval, HybridRetrieval
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import check_no_error, postprocess_qa_predictions
 
@@ -57,24 +57,56 @@ class ODQAPipeline:
             config=self.config,
         )
 
-        # 2) 리트리버 준비 (sparse / dense 선택)
-        if retrieval_args.retrieval_type == "dense":
-            dense_model_name = (
-                retrieval_args.dense_model_name_or_path
-                or model_args.model_name_or_path
-            )
-            self.retriever = DenseRetrieval(
-                model_name_or_path=dense_model_name,
-                data_path=retrieval_args.data_path,
-                context_path=retrieval_args.context_path,
-            )
+        # 2) 리트리버 준비 (sparse / dense 선택) - eval_retrieval이 True일 때만 초기화
+        if data_args.eval_retrieval:
+            if retrieval_args.retrieval_type == "dense":
+                dense_model_name = (
+                    retrieval_args.dense_model_name_or_path
+                )
+                self.retriever = DenseRetrieval(
+                    model_name_or_path=dense_model_name,
+                    data_path=retrieval_args.data_path,
+                    context_path=retrieval_args.context_path,
+                )
+            elif retrieval_args.retrieval_type == 'sparse':
+                # 기본값: TF-IDF sparse retrieval
+                self.retriever = SparseRetrieval(
+                    tokenize_fn=self.tokenizer.tokenize,
+                    data_path=retrieval_args.data_path,
+                    context_path=retrieval_args.context_path,
+                )
+            elif retrieval_args.retrieval_type == 'hybrid':
+                logger.info("Initializing Hybrid Retriever (BM25 + Dense)...")
+                
+                # 1. BM25 초기화
+                bm25 = BM25Retrieval(
+                    tokenize_fn=self.tokenizer.tokenize,
+                    data_path=retrieval_args.data_path,
+                    context_path=retrieval_args.context_path,
+                )
+                bm25.get_sparse_embedding() # 인덱스 빌드
+                
+                # 2. Dense 초기화
+                dense = DenseRetrieval(
+                    model_name_or_path=retrieval_args.dense_model_name_or_path,
+                    data_path=retrieval_args.data_path,
+                    context_path=retrieval_args.context_path,
+                )
+                dense.build_index() # 인덱스 빌드 (캐시 로드)
+                
+                # 3. Hybrid로 결합
+                self.retriever = HybridRetrieval(sparse_retriever=bm25, dense_retriever=dense)
+
+
+            else: #bm25
+                self.retriever = BM25Retrieval(
+                    tokenize_fn=self.tokenizer.tokenize,
+                    data_path=retrieval_args.data_path,
+                    context_path=retrieval_args.context_path,
+                )
         else:
-            # 기본값: TF-IDF sparse retrieval
-            self.retriever = SparseRetrieval(
-                tokenize_fn=self.tokenizer.tokenize,
-                data_path=retrieval_args.data_path,
-                context_path=retrieval_args.context_path,
-            )
+            self.retriever = None
+
         # 3) Trainer (reader)는 필요 시점에 구성
         self.trainer: Optional[QuestionAnsweringTrainer] = None
 
@@ -132,6 +164,7 @@ class ODQAPipeline:
                 stride=self.data_args.doc_stride,
                 return_overflowing_tokens=True,
                 return_offsets_mapping=True,
+                return_token_type_ids=False,
                 padding="max_length" if self.data_args.pad_to_max_length else False,
             )
 
@@ -213,6 +246,7 @@ class ODQAPipeline:
                 stride=self.data_args.doc_stride,
                 return_overflowing_tokens=True,
                 return_offsets_mapping=True,
+                return_token_type_ids=False,
                 padding="max_length" if self.data_args.pad_to_max_length else False,
             )
 
@@ -345,6 +379,15 @@ class ODQAPipeline:
         - str 한 개 → top-k passage & scores 반환
         - HF Dataset → question / context가 붙은 테이블 반환
         """
+        # retriever가 None이면 retrieval 생략 (eval_retrieval=False 경우)
+        if self.retriever is None:
+            if isinstance(queries, str):
+                # 단일 질문인 경우 빈 결과 반환
+                return ([], [])
+            elif isinstance(queries, Dataset):
+                # Dataset인 경우 그대로 반환 (retrieval 없이)
+                return queries
+
         # retriever가 공통으로 제공하는 build_index / retrieve 사용
         # (SparseRetrieval은 내부적으로 TF-IDF, DenseRetrieval은 transformer encoder 사용)
         if getattr(self.retriever, "p_embedding", None) is None:

@@ -1,0 +1,34 @@
+# sweep.yaml
+program: baseline/inference.py
+name: roberta_BGE_top_k
+project: BGE_Top_k_Tune
+method: grid  # min/max 범위를 쓰려면 bayes나 random 추천
+metric:
+  name: eval_exact_match
+  goal: maximize
+
+parameters:
+  top_k:
+    values: [2, 3, 5, 10, 20]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - ${args}
+  # --- [여기부터 Inference 전용 인자로 교체] ---
+  - --model_name_or_path
+  - ./outputs/train_result  # [필수] 미리 학습시켜둔 모델 경로 (반드시 확인!)
+  - --dataset_name
+  - ./data/train_dataset    # 평가할 데이터셋 (Validation)
+  - --output_dir
+  - ./outputs/sweep_result
+  - --do_eval               # [필수] 평가 모드
+  - --retrieval_type
+  - dense                   # [필수] 검색 방식 (sparse / bm25)
+  - --eval_retrieval
+  - True                    # [필수] 검색을 수행해야 top_k가 의미 있음
+  - --data_path
+  - ./data
+  - --context_path
+  - wikipedia_documents.json
