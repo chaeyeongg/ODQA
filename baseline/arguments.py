@@ -126,3 +126,39 @@ class RetrievalArguments:
         default=0.5,
         metadata={"help": "Weight for dense retrieval score in Hybrid retrieval (0.0 ~ 1.0)"},
     )
+
+
+@dataclass
+class MiningArguments:
+    """
+    Arguments for Hard Negative Mining
+    """
+
+    dataset_name: Optional[str] = field(
+        default="./data/train_dataset",
+        metadata={"help": "The name of the dataset to use."},
+    )
+    model_name_or_path: Optional[str] = field(
+        default="klue/roberta-large",
+        metadata={"help": "Tokenizer model name"},
+    )
+    data_path: Optional[str] = field(
+        default="./data",
+        metadata={"help": "Path to data directory"},
+    )
+    context_path: Optional[str] = field(
+        default="wikipedia_documents.json",
+        metadata={"help": "Path to wikipedia documents"},
+    )
+    output_dir: Optional[str] = field(
+        default="./data/mined_data",
+        metadata={"help": "Directory to save mined data"},
+    )
+    top_k_mining: int = field(
+        default=50,
+        metadata={"help": "Number of docs to retrieve for mining"},
+    )
+    num_negatives: int = field(
+        default=5,
+        metadata={"help": "Number of hard negatives to save per query"},
+    )
