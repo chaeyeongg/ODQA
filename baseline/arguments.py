@@ -116,7 +116,7 @@ class RetrievalArguments:
         },
     )
     dense_model_name_or_path: Optional[str] = field(
-        default="dragonkue/BGE-m3-ko",
+        default="./outputs/dense_retriever_finetuned",
         metadata={
             "help": "Model name or path to use for dense retrieval. "
             "If None and retrieval_type='dense', falls back to model_name_or_path."
@@ -125,4 +125,64 @@ class RetrievalArguments:
     alpha: float = field(
         default=0.5,
         metadata={"help": "Weight for dense retrieval score in Hybrid retrieval (0.0 ~ 1.0)"},
+    )
+
+
+@dataclass
+class MiningArguments:
+    """
+    Arguments for Hard Negative Mining
+    """
+
+    dataset_name: Optional[str] = field(
+        default="./data/train_dataset",
+        metadata={"help": "The name of the dataset to use."},
+    )
+    model_name_or_path: Optional[str] = field(
+        default="klue/roberta-large",
+        metadata={"help": "Tokenizer model name"},
+    )
+    data_path: Optional[str] = field(
+        default="./data",
+        metadata={"help": "Path to data directory"},
+    )
+    context_path: Optional[str] = field(
+        default="wikipedia_documents.json",
+        metadata={"help": "Path to wikipedia documents"},
+    )
+    output_dir: Optional[str] = field(
+        default="./data/mined_data",
+        metadata={"help": "Directory to save mined data"},
+    )
+    top_k_mining: int = field(
+        default=50,
+        metadata={"help": "Number of docs to retrieve for mining"},
+    )
+    num_negatives: int = field(
+        default=5,
+        metadata={"help": "Number of hard negatives to save per query"},
+    )
+
+
+@dataclass
+class DenseTrainArguments:
+    model_name_or_path: str = field(
+        default="dragonkue/BGE-m3-ko",
+        metadata={"help": "Base model to fine-tune"}
+    )
+    train_data_path: str = field(
+        default="./data/mined_data/hard_negatives.json",
+        metadata={"help": "Path to the mined hard negatives JSON file"}
+    )
+    output_dir: str = field(
+        default="./outputs/dense_retriever",
+        metadata={"help": "Directory to save the fine-tuned model"}
+    )
+    num_epochs: int = field(default=3)
+    batch_size: int = field(default=4)  # GPU 메모리에 맞춰 조절 (BGE-large 계열은 작게)
+    learning_rate: float = field(default=2e-5)
+    max_seq_length: int = field(default=512)
+    use_instruction: bool = field(
+        default=True, 
+        metadata={"help": "Add BGE instruction prefix to queries"}
     )
