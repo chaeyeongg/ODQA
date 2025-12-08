@@ -11,6 +11,7 @@ from tqdm.auto import tqdm
 import torch
 from transformers import AutoModel, AutoTokenizer
 from rank_bm25 import BM25Okapi
+import pickle
 
 
 class SparseRetrieval:
@@ -44,14 +45,37 @@ class SparseRetrieval:
 
     def get_sparse_embedding(self) -> None:
         """
-        핵심 1: 문서들을 TF-IDF 임베딩 벡터로 변환 (Fit & Transform)
-        pickle 저장/로딩 로직을 제거하고, 매번 계산하도록 단순화함.
+        BM25 인덱스 생성 (캐싱 적용)
         """
-        print("Build passage embedding...")
-        self.p_embedding = self.tfidfv.fit_transform(self.contexts)
-        print(f"Embedding shape: {self.p_embedding.shape}")
-        print("Embedding complete.")
+        # 1. 캐시 파일 경로 설정
+        # 데이터 개수를 파일명에 포함시켜 데이터 변경 시 충돌 방지
+        cache_dir = os.path.join(self.data_path, "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # 파일명: bm25_tokenized_문서개수.bin
+        cache_file = os.path.join(cache_dir, f"bm25_tokenized_{len(self.contexts)}.bin")
 
+        tokenized_corpus = []
+
+        # 2. 캐시 확인 및 로드
+        if os.path.isfile(cache_file):
+            print(f"✅ Loading BM25 tokenized corpus from cache: {cache_file}")
+            with open(cache_file, "rb") as f:
+                tokenized_corpus = pickle.load(f)
+        else:
+            # 3. 없으면 생성 (토큰화 수행)
+            print("🚀 Tokenizing all contexts for BM25 (This may take a while)...")
+            tokenized_corpus = [self.tokenize_fn(doc) for doc in tqdm(self.contexts, desc="Tokenizing")]
+            
+            # 4. 저장
+            print(f"💾 Saving BM25 tokenized corpus to cache: {cache_file}")
+            with open(cache_file, "wb") as f:
+                pickle.dump(tokenized_corpus, f)
+        
+        print("Build BM25 index...")
+        self.bm25 = BM25Okapi(tokenized_corpus)
+        print("BM25 index build complete.")
+        
     def build_index(self) -> None:
         """
         공통 인터페이스를 위한 alias. 내부적으로 TF-IDF 임베딩을 구성합니다.
