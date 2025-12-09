@@ -18,8 +18,16 @@ from arguments import (
     DataTrainingArguments,
     RetrievalArguments,
 )
-from retrieval import SparseRetrieval, DenseRetrieval, BM25Retrieval, HybridRetrieval
+from retrieval import (
+  SparseRetrieval, 
+  DenseRetrieval, 
+  BM25Retrieval, 
+  HybridRetrieval, 
+  RerankRetrieval
+)
+
 from trainer_qa import QuestionAnsweringTrainer
+
 from utils_qa import check_no_error, postprocess_qa_predictions
 
 from mecab import MeCab
@@ -117,6 +125,14 @@ class ODQAPipeline:
                 )
         else:
             self.retriever = None
+
+        # Reranker 적용
+        if retrieval_args.use_reranker:
+            logger.info(f"Applying Reranker: {retrieval_args.reranker_model_name}")
+            self.retriever = RerankRetrieval(
+                base_retriever=self.retriever, #  Retriever Base로 넣음
+                model_name_or_path=retrieval_args.reranker_model_name
+            )
 
         # 3) Trainer (reader)는 필요 시점에 구성
         self.trainer: Optional[QuestionAnsweringTrainer] = None
