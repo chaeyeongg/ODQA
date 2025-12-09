@@ -18,9 +18,19 @@ from arguments import (
     DataTrainingArguments,
     RetrievalArguments,
 )
-from retrieval import SparseRetrieval, DenseRetrieval, BM25Retrieval, HybridRetrieval
+from retrieval import (
+  SparseRetrieval, 
+  DenseRetrieval, 
+  BM25Retrieval, 
+  HybridRetrieval, 
+  RerankRetrieval
+)
+
 from trainer_qa import QuestionAnsweringTrainer
+
 from utils_qa import check_no_error, postprocess_qa_predictions
+
+from mecab import MeCab
 
 
 logger = logging.getLogger(__name__)
@@ -57,6 +67,12 @@ class ODQAPipeline:
             config=self.config,
         )
 
+        self.mecab = MeCab()
+
+        def mecab_tokenizer(text):
+            return self.mecab.morphs(text) # case 1) 형태소 단위로 분리
+            # return self.mecab.nouns(text) # case 2) 명사만 분리
+
         # 2) 리트리버 준비 (sparse / dense 선택) - eval_retrieval이 True일 때만 초기화
         if data_args.eval_retrieval:
             if retrieval_args.retrieval_type == "dense":
@@ -71,7 +87,8 @@ class ODQAPipeline:
             elif retrieval_args.retrieval_type == 'sparse':
                 # 기본값: TF-IDF sparse retrieval
                 self.retriever = SparseRetrieval(
-                    tokenize_fn=self.tokenizer.tokenize,
+                    # tokenize_fn=self.tokenizer.tokenize, # 기본 토크나이저 (모델 tokenizer)
+                    tokenize_fn=mecab_tokenizer, # MeCab 토크나이저
                     data_path=retrieval_args.data_path,
                     context_path=retrieval_args.context_path,
                 )
@@ -80,7 +97,8 @@ class ODQAPipeline:
                 
                 # 1. BM25 초기화
                 bm25 = BM25Retrieval(
-                    tokenize_fn=self.tokenizer.tokenize,
+                    # tokenize_fn=self.tokenizer.tokenize,
+                    tokenize_fn=mecab_tokenizer,
                     data_path=retrieval_args.data_path,
                     context_path=retrieval_args.context_path,
                 )
@@ -100,12 +118,21 @@ class ODQAPipeline:
 
             else: #bm25
                 self.retriever = BM25Retrieval(
-                    tokenize_fn=self.tokenizer.tokenize,
+                    # tokenize_fn=self.tokenizer.tokenize,
+                    tokenize_fn=mecab_tokenizer,
                     data_path=retrieval_args.data_path,
                     context_path=retrieval_args.context_path,
                 )
         else:
             self.retriever = None
+
+        # Reranker 적용
+        if retrieval_args.use_reranker:
+            logger.info(f"Applying Reranker: {retrieval_args.reranker_model_name}")
+            self.retriever = RerankRetrieval(
+                base_retriever=self.retriever, #  Retriever Base로 넣음
+                model_name_or_path=retrieval_args.reranker_model_name
+            )
 
         # 3) Trainer (reader)는 필요 시점에 구성
         self.trainer: Optional[QuestionAnsweringTrainer] = None

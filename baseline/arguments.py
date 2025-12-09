@@ -123,9 +123,20 @@ class RetrievalArguments:
         },
     )
     alpha: float = field(
-        default=0.5,
+        default=0.3,
         metadata={"help": "Weight for dense retrieval score in Hybrid retrieval (0.0 ~ 1.0)"},
     )
+
+    use_reranker: bool = field(
+        default=False,
+        metadata={"help": "Use Reranker after retrieval"},
+    )
+
+    reranker_model_name: str = field(
+        default="BAAI/bge-reranker-v2-m3",
+        metadata={"help": "Model name for Reranker (Cross-Encoder)"},
+    )
+    
 
 
 @dataclass

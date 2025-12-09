@@ -11,6 +11,8 @@ from tqdm.auto import tqdm
 import torch
 from transformers import AutoModel, AutoTokenizer
 from rank_bm25 import BM25Okapi
+import pickle
+from sentence_transformers import CrossEncoder
 
 
 class SparseRetrieval:
@@ -44,14 +46,37 @@ class SparseRetrieval:
 
     def get_sparse_embedding(self) -> None:
         """
-        핵심 1: 문서들을 TF-IDF 임베딩 벡터로 변환 (Fit & Transform)
-        pickle 저장/로딩 로직을 제거하고, 매번 계산하도록 단순화함.
+        BM25 인덱스 생성 (캐싱 적용)
         """
-        print("Build passage embedding...")
-        self.p_embedding = self.tfidfv.fit_transform(self.contexts)
-        print(f"Embedding shape: {self.p_embedding.shape}")
-        print("Embedding complete.")
+        # 1. 캐시 파일 경로 설정
+        # 데이터 개수를 파일명에 포함시켜 데이터 변경 시 충돌 방지
+        cache_dir = os.path.join(self.data_path, "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # 파일명: bm25_tokenized_문서개수.bin
+        cache_file = os.path.join(cache_dir, f"bm25_tokenized_{len(self.contexts)}.bin")
 
+        tokenized_corpus = []
+
+        # 2. 캐시 확인 및 로드
+        if os.path.isfile(cache_file):
+            print(f"✅ Loading BM25 tokenized corpus from cache: {cache_file}")
+            with open(cache_file, "rb") as f:
+                tokenized_corpus = pickle.load(f)
+        else:
+            # 3. 없으면 생성 (토큰화 수행)
+            print("🚀 Tokenizing all contexts for BM25 (This may take a while)...")
+            tokenized_corpus = [self.tokenize_fn(doc) for doc in tqdm(self.contexts, desc="Tokenizing")]
+            
+            # 4. 저장
+            print(f"💾 Saving BM25 tokenized corpus to cache: {cache_file}")
+            with open(cache_file, "wb") as f:
+                pickle.dump(tokenized_corpus, f)
+        
+        print("Build BM25 index...")
+        self.bm25 = BM25Okapi(tokenized_corpus)
+        print("BM25 index build complete.")
+        
     def build_index(self) -> None:
         """
         공통 인터페이스를 위한 alias. 내부적으로 TF-IDF 임베딩을 구성합니다.
@@ -300,16 +325,37 @@ class BM25Retrieval:
 
     def get_sparse_embedding(self) -> None:
         """
-        BM25 인덱스 생성 (TF-IDF의 fit_transform과 대응)
+        BM25 인덱스 생성 (캐싱 적용)
         """
-        print("Tokenizing all contexts for BM25...")
-        # BM25Okapi는 문서가 토큰화된 리스트(List[List[str]])를 필요로 합니다.
-        tokenized_corpus = [self.tokenize_fn(doc) for doc in tqdm(self.contexts, desc="Tokenizing")]
+        # 1. 캐시 파일 경로 설정
+        # 데이터 개수를 파일명에 포함시켜 데이터 변경 시 충돌 방지
+        cache_dir = os.path.join(self.data_path, "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        # 파일명: bm25_tokenized_문서개수.bin
+        cache_file = os.path.join(cache_dir, f"bm25_tokenized_{len(self.contexts)}.bin")
+
+        tokenized_corpus = []
+
+        # 2. 캐시 확인 및 로드
+        if os.path.isfile(cache_file):
+            print(f"✅ Loading BM25 tokenized corpus from cache: {cache_file}")
+            with open(cache_file, "rb") as f:
+                tokenized_corpus = pickle.load(f)
+        else:
+            # 3. 없으면 생성 (토큰화 수행)
+            print("🚀 Tokenizing all contexts for BM25 (This may take a while)...")
+            tokenized_corpus = [self.tokenize_fn(doc) for doc in tqdm(self.contexts, desc="Tokenizing")]
+            
+            # 4. 저장
+            print(f"💾 Saving BM25 tokenized corpus to cache: {cache_file}")
+            with open(cache_file, "wb") as f:
+                pickle.dump(tokenized_corpus, f)
         
         print("Build BM25 index...")
         self.bm25 = BM25Okapi(tokenized_corpus)
         print("BM25 index build complete.")
-
+        
     def build_index(self) -> None:
         """
         공통 인터페이스
@@ -482,3 +528,115 @@ class HybridRetrieval:
         top_indices = sorted_indices.tolist()
 
         return top_scores, top_indices
+
+class RerankRetrieval:
+    def __init__(self, base_retriever, model_name_or_path: str = "BAAI/bge-reranker-v2-m3", device: str = "cuda"):
+        """
+        Reranker 초기화
+        """
+        self.base_retriever = base_retriever # 1차 검색 BM25, Dense, Hybrid 등
+        self.device = device
+
+        print(f"Loading Reranker model: {model_name_or_path}...")
+        self.cross_encoder = CrossEncoder(model_name_or_path, device=device)
+
+        if self.device == "cuda":
+            self.cross_encoder.model.half() # FP16
+
+    def build_index(self):
+        # Base retriever의 인덱스 빌드 호출
+        if hasattr(self.base_retriever, "build_index"):
+            self.base_retriever.build_index()
+        elif hasattr(self.base_retriever, "get_sparse_embedding"):
+            self.base_retriever.get_sparse_embedding()
+
+    def retrieve(self, query_or_dataset, topk=10, **kwargs):            
+            """
+            1차 검색 후 Reranking 수행
+            """
+            # 후보 문서는 topk * 5개 정도
+            candidate_k = min(topk * 5, 100)
+
+            # Case A: 단일 질문 (str)
+            if isinstance(query_or_dataset, str):
+                # 1. Base 검색 (문서 리스트를 받아옴)
+                if hasattr(self.base_retriever, "retrieve"):
+                    # Dense or Hybrid or BM25
+                    base_result = self.base_retriever.retrieve(query_or_dataset, topk=candidate_k)
+                    # base_result가 (scores, contexts) 튜플인지 확인
+                    if isinstance(base_result, tuple):
+                        doc_contexts = base_result[1]
+                    elif isinstance(base_result, pd.DataFrame): 
+                        # 혹시 DataFrame으로 온다면 처리 (단일 쿼리는 보통 tuple임)
+                        return base_result 
+                
+                return self._rerank_single(query_or_dataset, doc_contexts, topk)
+            
+            # Case B: 데이터셋 (Dataset or List)
+            elif isinstance(query_or_dataset, (Dataset, pd.DataFrame)):
+                return self._rerank_bulk(query_or_dataset, topk, candidate_k)
+
+    def _rerank_bulk(self, dataset, topk, candidate_k, **kwargs):
+        total = []
+        
+        queries = dataset["question"] if isinstance(dataset, pd.DataFrame) else list(dataset["question"])
+        ids = dataset["id"] if isinstance(dataset, pd.DataFrame) else list(dataset["id"])
+        
+        cols = dataset.columns if isinstance(dataset, pd.DataFrame) else dataset.column_names
+
+        # 정답 및 원본 컨텍스트 보존 -> Validation을 위해
+        has_answers = "answers" in cols
+        answers = dataset["answers"] if has_answers else None
+        if has_answers and not isinstance(answers, list): answers = list(answers)
+        
+        org_ctx_col =  None
+
+        if "original_context" in cols:
+            org_ctx_col = "original_context"
+        elif "context" in cols:
+            org_ctx_col = "context"
+        
+        original_contexts = list(dataset[org_ctx_col]) if org_ctx_col else None
+
+        for i, query in enumerate(tqdm(queries, desc="Reranking")):
+            # 1. Base Retriever 호출 시 **kwargs (alpha 등) 전달
+            if hasattr(self.base_retriever, "get_relevant_doc"):
+                # [수정] alpha 값 전달
+                _, doc_indices = self.base_retriever.get_relevant_doc(query, k=candidate_k, **kwargs)
+                
+                if hasattr(self.base_retriever, "sparse"): # Hybrid
+                    docs = [self.base_retriever.sparse.contexts[idx] for idx in doc_indices]
+                else: # BM25
+                    docs = [self.base_retriever.contexts[idx] for idx in doc_indices]
+            
+            elif hasattr(self.base_retriever, "retrieve"):
+                # [수정] alpha 값 전달
+                _, docs = self.base_retriever.retrieve(query, topk=candidate_k, **kwargs)
+
+            # 2. Cross-Encoder로 점수 계산
+            # (Query, Document) 쌍 만들기
+            pairs = [[query, doc] for doc in docs]
+            
+            # 점수 예측 (Batch 처리가 내부적으로 됨)
+            scores = self.cross_encoder.predict(pairs)
+            
+            # 3. 점수 높은 순으로 정렬 및 Top-K 자르기
+            sorted_idx = np.argsort(scores)[::-1][:topk]
+            top_docs = [docs[k] for k in sorted_idx]
+            
+            # 4. 결과 저장
+            tmp = {
+                "question": query,
+                "id": ids[i],
+                "context": " ".join(top_docs) # 모델 입력용으로 합침
+            }
+            
+            if has_answers:
+                tmp["answers"] = answers[i]
+
+            if original_contexts:
+                tmp["original_context"] = original_contexts[i]
+                
+            total.append(tmp)
+
+        return pd.DataFrame(total)
