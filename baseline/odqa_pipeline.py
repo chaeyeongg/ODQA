@@ -11,6 +11,7 @@ from transformers import (
     AutoTokenizer,
     AutoModelForQuestionAnswering,
     TrainingArguments,
+    EarlyStoppingCallback,
 )
 
 from arguments import (
@@ -380,7 +381,7 @@ class ODQAPipeline:
                     predictions=p.predictions, 
                     references=p.label_ids
                 )
-
+        
         self.trainer = QuestionAnsweringTrainer(
             model=self.model,
             args=self.training_args,
@@ -389,9 +390,10 @@ class ODQAPipeline:
             eval_examples=eval_examples,
             tokenizer=self.tokenizer,
             data_collator=data_collator,
-            post_process_function=post_processing_function,
-            compute_metrics=compute_metrics,
+            compute_metrics=compute_metrics, 
+            post_process_function=post_processing_function,           
         )
+
         return self.trainer
 
     # ----------------------------------------------------------------

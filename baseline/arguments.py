@@ -178,7 +178,7 @@ class MiningArguments:
 @dataclass
 class DenseTrainArguments:
     model_name_or_path: str = field(
-        default="dragonkue/BGE-m3-ko",
+        default="BAAI/bge-m3",
         metadata={"help": "Base model to fine-tune"}
     )
     train_data_path: str = field(
