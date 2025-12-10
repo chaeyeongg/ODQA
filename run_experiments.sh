@@ -93,14 +93,16 @@ python baseline/train.py \
     --do_eval \
     --per_device_train_batch_size 16 \
     --per_device_eval_batch_size 16 \
-    --num_train_epochs 3 \
+    --num_train_epochs 4 \
+    --learning_rate 0.0000085562 \
+    --weight_decay 0.01 \
+    --warmup_ratio 0.05 \
     --save_strategy epoch \
     --eval_strategy epoch \
     --logging_steps 100 \
     --overwrite_cache \
     --report_to wandb \
     --fp16 \
-    --run_name baseline_run
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}MRC 학습 실패!${NC}"
@@ -132,12 +134,11 @@ echo -e "${GREEN}순수 MRC 평가 완료!${NC}"
 echo -e "\n${YELLOW}[3/4] ODQA 평가 시작 (Retrieval + MRC)...${NC}"
 
 python baseline/inference.py \
-
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/train_dataset \
     --output_dir ${OUTPUT_DIR}/eval_odqa \
     --do_eval \
-    --per_device_eval_batch_size 8 \
+    --per_device_eval_batch_size 16 \
     --data_path ${DATA_DIR} \
     --context_path wikipedia_documents.json \
     --retrieval_type hybrid \
@@ -159,9 +160,9 @@ python baseline/inference.py \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/test_dataset \
     --do_predict \
-    --retrieval_type dense \
+    --retrieval_type hybrid \
     --use_reranker True \
-    --top_k 10 \
+    --top_k 3 \
     --data_path ${DATA_DIR} \
     --context_path wikipedia_documents.json
 

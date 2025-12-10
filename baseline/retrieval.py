@@ -231,25 +231,28 @@ class DenseRetrieval:
         """
         캐시 파일이 존재하면 로드하고, 없으면 생성 후 저장합니다.
         """
-        # 1. 캐시 파일 경로 생성 (모델 이름 + 데이터 개수로 유니크하게 만듦)
-        model_tag = self.model_name.replace("/", "_") # 경로 문자 제거
-        cache_dir = os.path.join(self.data_path, "cache")
-        os.makedirs(cache_dir, exist_ok=True)
+        # # 1. 캐시 파일 경로 생성 (모델 이름 + 데이터 개수로 유니크하게 만듦)
+        # model_tag = self.model_name.replace("/", "_") # 경로 문자 제거
+        # cache_dir = os.path.join(self.data_path, "cache")
+        # os.makedirs(cache_dir, exist_ok=True)
         
-        cache_file = os.path.join(cache_dir, f"dense_emb_{model_tag}_{len(self.contexts)}.pt")
+        # cache_file = os.path.join(cache_dir, f"dense_emb_{model_tag}_{len(self.contexts)}.pt")
 
         # 2. 캐시 확인 및 로드
-        if os.path.isfile(cache_file):
+        # if os.path.isfile(cache_file):
+        if True:
+            cache_file ="/data/ephemeral/home/ODQA/data/cache/dense_emb__data_ephemeral_home_ODQA_outputs_dense_retriever_finetuned_56737.pt"
+
             print(f"✅ Loading dense embedding from cache: {cache_file}")
             self.p_embedding = torch.load(cache_file)
-        else:
-            # 3. 없으면 생성 (오래 걸림)
-            print("🚀 Building dense passage embedding (This may take a while)...")
-            self.p_embedding = self._encode_texts(self.contexts, is_query=False)
+        # else:
+        #     # 3. 없으면 생성 (오래 걸림)
+        #     print("🚀 Building dense passage embedding (This may take a while)...")
+        #     self.p_embedding = self._encode_texts(self.contexts, is_query=False)
             
-            # 4. 저장
-            print(f"💾 Saving dense embedding to cache: {cache_file}")
-            torch.save(self.p_embedding, cache_file)
+        #     # 4. 저장
+        #     print(f"💾 Saving dense embedding to cache: {cache_file}")
+        #     torch.save(self.p_embedding, cache_file)
             
         print(f"Dense embedding shape: {self.p_embedding.shape}")
 
@@ -555,7 +558,8 @@ class RerankRetrieval:
             1차 검색 후 Reranking 수행
             """
             # 후보 문서는 topk * 5개 정도
-            candidate_k = min(topk * 5, 100)
+            # candidate_k = min(topk * 5, 100)
+            candidate_k = 50
 
             # Case A: 단일 질문 (str)
             if isinstance(query_or_dataset, str):
@@ -618,7 +622,7 @@ class RerankRetrieval:
             pairs = [[query, doc] for doc in docs]
             
             # 점수 예측 (Batch 처리가 내부적으로 됨)
-            scores = self.cross_encoder.predict(pairs)
+            scores = self.cross_encoder.predict(pairs, batch_size=8)
             
             # 3. 점수 높은 순으로 정렬 및 Top-K 자르기
             sorted_idx = np.argsort(scores)[::-1][:topk]
