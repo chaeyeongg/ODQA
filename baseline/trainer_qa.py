@@ -43,6 +43,8 @@ class QuestionAnsweringTrainer(Trainer):
         data_collator=None,
         post_process_function=None,
         compute_metrics=None,
+        callbacks=None,
+        **kwargs,  
     ):
         # ⚠️ 핵심 수정: 부모 클래스 호출 시 반드시 '이름=값' 형태로 넘겨야 순서가 안 섞입니다.
         super().__init__(
@@ -53,6 +55,9 @@ class QuestionAnsweringTrainer(Trainer):
             eval_dataset=eval_dataset,
             tokenizer=tokenizer,
             compute_metrics=compute_metrics,
+            callbacks=callbacks,
+            **kwargs,
+
         )
         self.eval_examples = eval_examples
         self.post_process_function = post_process_function

@@ -2,11 +2,11 @@
 # train 하이퍼파라미터 튜닝
 ###########################
 program: baseline/train.py
-name: Roberta_large_MRC_Hyperparameter_Tuning
-project: ODQA_MRC_Tuning(Roberta-large)
+name: Roberta_MRC_Hyperparameter_Tuning
+project: ODQA_MRC_Tuning(Roberta_base_v3)
 method: bayes
 metric:
-  name: eval_exact_match
+  name: exact_match
   goal: maximize
 
 parameters:
@@ -18,7 +18,7 @@ parameters:
 
   # 2. 학습 에폭 수
   num_train_epochs:
-    values: [2, 3, 4, 5]
+    values: [3, 4, 5]
 
   # 3. 배치 크기
   # GPU 메모리에 따라 조절 (OOM 발생 시 8, 4로 줄이세요)
@@ -58,17 +58,13 @@ command:
   - --report_to
   - wandb
   - --retrieval_type
-  - dense
+  - bm25
   - --top_k
   - 10
   - --use_reranker
   - False
   - --fp16                  
   - --overwrite_output_dir
-  - --save_total_limit
-  - 1                          # 체크포인트는 딱 1개(Best)만 남김
-  - --load_best_model_at_end
-  - True                       # 끝나고 Best 모델로 복구 (정확한 점수 보고용)
   - --run_name
   - sweep_run
 
