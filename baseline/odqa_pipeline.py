@@ -11,6 +11,7 @@ from transformers import (
     AutoTokenizer,
     AutoModelForQuestionAnswering,
     TrainingArguments,
+    EarlyStoppingCallback,
 )
 
 from arguments import (
@@ -381,17 +382,25 @@ class ODQAPipeline:
                     references=p.label_ids
                 )
 
+
+        # 1. TrainingArguments 강제 설정
+        self.training_args.load_best_model_at_end = True  # 최고 성능 모델 저장
+        self.training_args.metric_for_best_model = "exact_match"
+        self.training_args.greater_is_better = True
+        
+        # 2. Trainer 초기화 시 callbacks 추가
         self.trainer = QuestionAnsweringTrainer(
             model=self.model,
             args=self.training_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             eval_examples=eval_examples,
-            tokenizer=self.tokenizer,
+            processing_class=self.tokenizer,
             data_collator=data_collator,
-            post_process_function=post_processing_function,
-            compute_metrics=compute_metrics,
+            compute_metrics=self.compute_metrics,            
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
         )
+
         return self.trainer
 
     # ----------------------------------------------------------------
