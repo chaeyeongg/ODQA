@@ -84,7 +84,7 @@ fi
 # 1. MRC 학습 (Train)
 echo -e "\n${YELLOW}[1/4] MRC 학습 시작...${NC}"
 
-python baseline/train.py \
+python src/odqa/train.py \
     --model_name_or_path ${MODEL_NAME} \
     --dataset_name ${DATA_DIR}/train_dataset \
     --data_path ${DATA_DIR} \
@@ -113,7 +113,7 @@ echo -e "${GREEN}MRC 학습 완료!${NC}"
 
 # 2. 순수 MRC 평가
 echo -e "\n${YELLOW}[2/4] 순수 MRC 평가 시작...${NC}"
-python baseline/inference.py \
+python src/odqa/inference.py \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/train_dataset \
     --output_dir ${OUTPUT_DIR}/eval_mrc \
@@ -133,7 +133,7 @@ echo -e "${GREEN}순수 MRC 평가 완료!${NC}"
 
 echo -e "\n${YELLOW}[3/4] ODQA 평가 시작 (Retrieval + MRC)...${NC}"
 
-python baseline/inference.py \
+python src/odqa/inference.py \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/train_dataset \
     --output_dir ${OUTPUT_DIR}/eval_odqa \
@@ -155,7 +155,7 @@ echo -e "${GREEN}ODQA 평가 완료!${NC}"
 
 # 4. 최종 테스트 추론
 echo -e "\n${YELLOW}[4/4] 최종 테스트 데이터 추론 시작...${NC}"
-python baseline/inference.py \
+python src/odqa/inference.py \
     --output_dir ${OUTPUT_DIR}/test_predict \
     --model_name_or_path ${OUTPUT_DIR}/train_result \
     --dataset_name ${DATA_DIR}/test_dataset \

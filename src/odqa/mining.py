@@ -7,8 +7,8 @@ from datasets import load_from_disk, load_dataset, DatasetDict
 from transformers import AutoTokenizer, HfArgumentParser
 
 # 같은 폴더 내 모듈 import
-from retrieval import BM25Retrieval
-from arguments import MiningArguments  # 새로 추가한 dataclass import
+from .retrieval import BM25Retrieval
+from .arguments import MiningArguments  # 새로 추가한 dataclass import
 
 # 로거 설정
 logging.basicConfig(

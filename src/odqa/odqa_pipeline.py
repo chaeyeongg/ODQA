@@ -14,22 +14,22 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
-from arguments import (
+from .arguments import (
     ModelArguments,
     DataTrainingArguments,
     RetrievalArguments,
 )
-from retrieval import (
-  SparseRetrieval, 
-  DenseRetrieval, 
-  BM25Retrieval, 
-  HybridRetrieval, 
+from .retrieval import (
+  SparseRetrieval,
+  DenseRetrieval,
+  BM25Retrieval,
+  HybridRetrieval,
   RerankRetrieval
 )
 
-from trainer_qa import QuestionAnsweringTrainer
+from .trainer_qa import QuestionAnsweringTrainer
 
-from utils_qa import check_no_error, postprocess_qa_predictions
+from .utils_qa import check_no_error, postprocess_qa_predictions
 
 from mecab import MeCab
 

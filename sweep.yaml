@@ -1,7 +1,7 @@
 ###########################
 # train 하이퍼파라미터 튜닝
 ###########################
-program: baseline/train.py
+program: src/odqa/train.py
 name: Roberta_MRC_Hyperparameter_Tuning
 project: ODQA_MRC_Tuning(Roberta_base_v3)
 method: bayes
@@ -74,7 +74,7 @@ command:
 ###########################
 
 # # sweep.yaml
-# program: baseline/inference.py
+# program: src/odqa/inference.py
 # name: Reranker_Hybrid_Top_k_Tuning
 # project: Reranker_Hybrid_Top_k_Tuning
 # method: bayes  # min/max 범위를 쓰려면 bayes나 random 추천

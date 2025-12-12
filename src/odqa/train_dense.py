@@ -15,7 +15,7 @@ from sentence_transformers import (
     evaluation
 )
 from transformers import HfArgumentParser
-from arguments import DenseTrainArguments  # 새로 추가한 dataclass import
+from .arguments import DenseTrainArguments  # 새로 추가한 dataclass import
 
 # 로거 설정
 logging.basicConfig(

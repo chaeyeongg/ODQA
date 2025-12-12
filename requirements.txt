@@ -1,0 +1,18 @@
+# torch==2.1.0
+
+transformers==4.41.0
+accelerate==0.32.1
+pandas==2.3.3
+evaluate==0.4.6
+
+# faiss install (if you want to)
+faiss-gpu
+
+wandb
+datasets
+rank-bm25
+scikit-learn
+sentence-transformers==2.7.0
+python-mecab-ko
+numpy
+tqdm

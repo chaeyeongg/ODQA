@@ -24,7 +24,7 @@ import os
 from typing import Any, Optional, Tuple
 
 import numpy as np
-from arguments import DataTrainingArguments
+from .arguments import DataTrainingArguments
 from datasets import DatasetDict
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizerFast, TrainingArguments
