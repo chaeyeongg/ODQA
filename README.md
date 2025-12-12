@@ -11,7 +11,7 @@
 - 🔍 **다양한 검색 방식**: Sparse(TF-IDF), Dense, BM25, Hybrid 검색 지원
 - 📖 **고성능 MRC 모델**: KLUE-RoBERTa 기반 Reader 모델
 - 🔄 **유연한 파이프라인**: 모듈별 독립 실행 및 결합 가능
-- 🎯 **쉬운 실험**: Jupyter notebook 및 스크립트 기반 실행
+- 🎯 **쉬운 실험**: run_experiments.sh 터미널 실행을 통해 간단히 실행 가능
 - 📊 **WandB 통합**: 하이퍼파라미터 튜닝 및 실험 추적
 - 🏗️ **모듈화 설계**: 재사용 가능한 컴포넌트 구조
 
@@ -21,14 +21,12 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/your-username/odqa-pipeline.git
-cd odqa-pipeline
+git https://github.com/chaeyeongg/ODQA.git
+cd ODQA
 
 # Install dependencies
 pip install -r requirements.txt
 
-# 또는 개발 모드로 설치
-pip install -e .
 ```
 
 ### 데이터 준비
@@ -51,38 +49,75 @@ mkdir -p data
 # 하이퍼파라미터 튜닝
 ./run_experiments.sh tune
 
-# 개별 모듈 실행
-python src/odqa/train.py --help
-python src/odqa/inference.py --help
+# ODQA Eval 실행
+python .src/odqa/inference.py \
+    --model_name_or_path ./outputs/train_result \
+    --dataset_name ./data/train_dataset \
+    --output_dir ./outputs/eval_odqa \
+    --do_eval \
+    --per_device_eval_batch_size 16 \
+    --data_path ./data \
+    --context_path wikipedia_documents.json \
+    --retrieval_type hybrid \
+    --use_reranker True \
+    --top_k 3 \
+    --eval_retrieval True
+    
+# ODQA Test 실행
+python .src/odqa/inference.py \
+    --output_dir ./outputs/test_predict \
+    --model_name_or_path ./outputs/train_result \
+    --dataset_name ./data/test_dataset \
+    --do_predict \
+    --retrieval_type hybrid \
+    --use_reranker True \
+    --top_k 3 \
+    --data_path ./data \
+    --context_path wikipedia_documents.json
+
+
+# Soft weighted Ensemble 실행
+python ./src/odqa/ensemble.py \
+    --model_dirs ./data/ensemble_data/nbest_predictions_bigbird.json  ./data/ensemble_data/nbest_predictions_roberta.json ./data/ensemble_data/nbest_predictions_robert_v2.json \
+    --weights 0.5 1.5 2.0 \
+    --output_dir ./outputs/ensemble_weighted \
+    --strategy soft
+
+# Hard weighted Ensemble 실행
+python ./src/odqa/ensemble.py \
+    --model_dirs ./data/ensemble_data/predictions_bigbird.csv ./data/ensemble_data/predictions_ensemble.csv \
+    --weights 0.5 1.5 \
+    --output_dir ./outputs/ensemble_hard \
+    --strategy hard
+
 ```
 
 ## 📂 Project Structure
 
-```
-odqa-pipeline/
-├── src/odqa/                    # ODQA 패키지
-│   ├── __init__.py             # 패키지 초기화
-│   ├── odqa_pipeline.py        # 메인 ODQA 파이프라인 클래스
-│   ├── retrieval.py            # 검색 모듈 (Sparse, Dense, BM25, Hybrid)
-│   ├── train.py                # MRC 모델 학습 스크립트
-│   ├── inference.py            # 모델 평가 및 추론 스크립트
-│   ├── trainer_qa.py           # QA 태스크용 커스텀 트레이너
-│   ├── utils_qa.py             # 데이터 전처리 유틸리티
-│   ├── arguments.py            # 실행 인자 설정
-│   ├── mining.py               # 데이터 마이닝 스크립트
-│   ├── train_dense.py          # Dense Retriever 학습 스크립트
-│   ├── ensemble.py             # 앙상블 예측 스크립트
-│   ├── test_pipeline.ipynb     # 파이프라인 테스트 노트북
-│   ├── EDA.ipynb              # 데이터 탐색 노트북
-│   └── README.md               # 모듈별 설명
-├── data/                       # 데이터 파일들 (.gitkeep)
-├── outputs/                    # 학습 결과 및 예측 파일 (.gitkeep)
-├── requirements.txt            # Python 의존성
-├── setup.py                    # 패키지 설정
-├── run_experiments.sh          # 전체 실험 실행 스크립트
-├── sweep.yaml                  # WandB 하이퍼파라미터 튜닝 설정
-├── LICENSE                     # MIT 라이선스
-└── README.md                   # 이 파일
+```bash
+.
+├── src/odqa/               # ODQA 모듈 폴더
+│   ├── odqa_pipeline.py    # main class (Retriever + Reranker + Reader)
+│   ├── retrieval.py        # Retrieval 모듈
+│   ├── train.py            # MRC 모델 학습 스크립트
+│   ├── inference.py        # 모델 평가 및 추론 스크립트
+│   ├── mining.py           # train_dense.py 실행을 위한 학습 파일 생성용 모듈
+│   ├── train_dense.py      # dense model fine-tuning 모듈
+│   ├── trainer_qa.py       # QA Task용 Custom Trainer
+│   ├── utils_qa.py         # 데이터 전처리 및 후처리 유틸리티
+│   ├── ensemble.py         # Predictions 앙상블 모듈
+│   ├── README.md           # ODQA 모듈 README
+│   └── arguments.py        # Arguments 설정 파일
+│
+├── data/                   # 데이터 폴더 (대회에서 제공한 datasets를 넣어주세요.)
+│   ├── mined_data/         # mining.py 실행 시 자동 생성
+│   └── ensemble_data/      # 앙상블 할 predictions 파일을 넣어주세요.
+│
+├── outputs/                # train.py, inference.py 실행 시 자동 생성
+├── README.md               # 이 파일
+├── requirements.txt        # ODQA 모듈 실행을 위한 필수 라이브러리
+├── sweep.yaml              # 하이퍼파라미터 인자값 설정 스크립트
+└── run_experiment.sh       # 전체 실험 자동 실행 스크립트
 ```
 
 ## 🔧 Configuration
@@ -90,8 +125,7 @@ odqa-pipeline/
 ### 주요 모델 및 설정
 
 - **Reader Model**: `klue/roberta-large` (기본)
-  - `klue/bert-base`, `monologg/koelectra-base-v3-finetuned-korquad` 등 지원
-- **Retrieval Type**: `bm25`, `sparse`, `dense`, `hybrid`
+- **Retrieval Type**: `bm25`, `sparse`(TF-IDF), `dense`, `hybrid`
 - **Top-K**: 검색할 문서 개수 (기본: 10)
 
 ### Arguments 설정
@@ -171,18 +205,6 @@ wandb login YOUR_WANDB_TOKEN
 - Transformers >= 4.21
 - Datasets >= 2.0
 - WandB (선택사항)
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
