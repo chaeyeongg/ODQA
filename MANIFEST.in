@@ -1,8 +1,0 @@
-include README.md
-include LICENSE
-include requirements.txt
-include run_experiments.sh
-include sweep.yaml
-recursive-include src/odqa *.py
-recursive-include src/odqa *.ipynb
-recursive-include src/odqa *.md
