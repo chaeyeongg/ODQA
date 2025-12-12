@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 def main() -> None:
     """
-    MRC 학습 / 평가 엔트리포인트.
-    - 모델/데이터/리트리벌/트레이닝 인자를 파싱한 뒤
+    MRC 학습 / 평가
     - ODQAPipeline(train_mrc)을 호출하여 학습/평가를 수행합니다.
     """
     parser = HfArgumentParser(

@@ -47,26 +47,21 @@ def postprocess_qa_predictions(
 ):
     """
     Post-processes : qa model의 prediction 값을 후처리하는 함수
-    모델은 start logit과 end logit을 반환하기 때문에, 이를 기반으로 original text로 변경하는 후처리가 필요함
+    모델은 start logit과 end logit을 반환하기 때문에,
+    Original text로 변경하는 후처리가 필요함
 
     Args:
-        examples: 전처리 되지 않은 데이터셋 (see the main script for more information).
-        features: 전처리가 진행된 데이터셋 (see the main script for more information).
+        examples: 전처리 되지 않은 데이터셋
+        features: 전처리가 진행된 데이터셋
         predictions (:obj:`Tuple[np.ndarray, np.ndarray]`):
-            모델의 예측값 :start logits과 the end logits을 나타내는 two arrays              첫번째 차원은 :obj:`features`의 element와 갯수가 맞아야함.
+            모델의 예측값 :start logits과 the end logits을 나타내는 two arrays 첫번째 차원은 :obj:`features`의 element와 갯수가 맞아야함.
         version_2_with_negative (:obj:`bool`, `optional`, defaults to :obj:`False`):
             정답이 없는 데이터셋이 포함되어있는지 여부를 나타냄
         n_best_size (:obj:`int`, `optional`, defaults to 20):
             답변을 찾을 때 생성할 n-best prediction 총 개수
         max_answer_length (:obj:`int`, `optional`, defaults to 30):
             생성할 수 있는 답변의 최대 길이
-        null_score_diff_threshold (:obj:`float`, `optional`, defaults to 0):
-            null 답변을 선택하는 데 사용되는 threshold
-            : if the best answer has a score that is less than the score of
-            the null answer minus this threshold, the null answer is selected for this example (note that the score of
-            the null answer for an example giving several features is the minimum of the scores for the null answer on
-            each feature: all features must be aligned on the fact they `want` to predict a null answer).
-            Only useful when :obj:`version_2_with_negative` is :obj:`True`.
+        null_score_diff_threshold (:obj:`float`, `optional`, defaults to 0): null 답변을 선택하는 데 사용되는 threshold
         output_dir (:obj:`str`, `optional`):
             아래의 값이 저장되는 경로
             dictionary : predictions, n_best predictions (with their scores and logits) if:obj:`version_2_with_negative=True`,

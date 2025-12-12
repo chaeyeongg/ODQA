@@ -15,9 +15,9 @@ from sentence_transformers import (
     evaluation
 )
 from transformers import HfArgumentParser
-from .arguments import DenseTrainArguments  # 새로 추가한 dataclass import
+from .arguments import DenseTrainArguments 
 
-# 로거 설정
+# logger 설정
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def main():
-    # 1. 인자 파싱
+    # 1. Arguments 파싱
     parser = HfArgumentParser((DenseTrainArguments,))
     args, = parser.parse_args_into_dataclasses()
 
@@ -51,12 +51,12 @@ def main():
         positive = item['positive']
         negatives = item['negatives']
 
-        # BGE 모델은 쿼리 앞에 지시어를 붙이는 것이 성능에 좋음
+        # 쿼리 앞에 접두어 붙이기
         if args.use_instruction:
             query = query_instruction + query
 
-        # InputExample 생성: [Query, Positive, Hard_Negative_1, Hard_Negative_2, ...]
-        texts = [query, positive] + negatives[:2] # 안전하게 2개까지만 사용
+        # [Query, Positive, Hard_Negative_1, Hard_Negative_2, ...]
+        texts = [query, positive] + negatives[:2] # 2개까지만 사용
         train_samples.append(InputExample(texts=texts))
 
     logger.info(f"Total training samples: {len(train_samples)}")
@@ -69,7 +69,6 @@ def main():
     )
 
     # 5. Loss Function 설정 (MultipleNegativesRankingLoss)
-    # (Query, Positive, Negatives) 구조 학습에 최적화된 Loss
     train_loss = losses.MultipleNegativesRankingLoss(model=model)
 
     # 6. 학습 설정 (Warmup 등)

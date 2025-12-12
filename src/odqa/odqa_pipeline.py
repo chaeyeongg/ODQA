@@ -1,7 +1,20 @@
-# odqa_pipeline.py
+"""
+ODQA Pipeline Module
+
+ODQAPipeline class에 ODQA 문서 검색(Retrieval) + 정답 출력(MRC)이 구현되어 있습니다.
+
+- 다양한 retrieval (sparse, dense, BM25, hybrid)
+- Reranker 모델 on-off
+- 질의응답을 위한 pretrained MRC 연동
+- End-to-End 학습 및 추론 가능
+- 평가 지표 (EM, F1)
+
+EX)
+    pipeline = ODQAPipeline(model_args, data_args, retrieval_args, training_args)
+    results = pipeline.answer(queries, contexts)
+"""
 
 from typing import Any, Dict, List, Optional, Tuple, Union
-
 import logging
 import os
 
@@ -11,7 +24,6 @@ from transformers import (
     AutoTokenizer,
     AutoModelForQuestionAnswering,
     TrainingArguments,
-    EarlyStoppingCallback,
 )
 
 from .arguments import (
@@ -28,17 +40,13 @@ from .retrieval import (
 )
 
 from .trainer_qa import QuestionAnsweringTrainer
-
 from .utils_qa import check_no_error, postprocess_qa_predictions
-
 from mecab import MeCab
-
 
 logger = logging.getLogger(__name__)
 
 
 # --------------------------------------------------------------------
-# 2. ODQA 파이프라인 클래스
 #    - retriever + reader(MRC) + postprocess를 하나로 캡슐화
 # --------------------------------------------------------------------
 class ODQAPipeline:
@@ -74,7 +82,7 @@ class ODQAPipeline:
             return self.mecab.morphs(text) # case 1) 형태소 단위로 분리
             # return self.mecab.nouns(text) # case 2) 명사만 분리
 
-        # 2) 리트리버 준비 (sparse / dense 선택) - eval_retrieval이 True일 때만 초기화
+        # 2) 리트리버 준비 (sparse(TF-IDF), dense, bm25, hybrid)
         if data_args.eval_retrieval:
             if retrieval_args.retrieval_type == "dense":
                 dense_model_name = (
@@ -86,7 +94,7 @@ class ODQAPipeline:
                     context_path=retrieval_args.context_path,
                 )
             elif retrieval_args.retrieval_type == 'sparse':
-                # 기본값: TF-IDF sparse retrieval
+                # TF-IDF
                 self.retriever = SparseRetrieval(
                     # tokenize_fn=self.tokenizer.tokenize, # 기본 토크나이저 (모델 tokenizer)
                     tokenize_fn=mecab_tokenizer, # MeCab 토크나이저
@@ -127,23 +135,23 @@ class ODQAPipeline:
         else:
             self.retriever = None
 
-        # Reranker 적용
+        # Reranker On
         if retrieval_args.use_reranker:
             logger.info(f"Applying Reranker: {retrieval_args.reranker_model_name}")
             self.retriever = RerankRetrieval(
-                base_retriever=self.retriever, #  Retriever Base로 넣음
+                base_retriever=self.retriever, # Retriever로 1차 문서 검색
                 model_name_or_path=retrieval_args.reranker_model_name
             )
 
-        # 3) Trainer (reader)는 필요 시점에 구성
+        # 3) Trainer (reader)
         self.trainer: Optional[QuestionAnsweringTrainer] = None
 
-        # check_no_error 결과를 저장해 재사용
+        # check_no_error 결과
         self.last_checkpoint: Optional[str] = None
         self.max_seq_length: Optional[int] = None
 
     # ----------------------------------------------------------------
-    # 3. Dataset 준비 (MRC 학습/평가용)
+    #      - Dataset 준비 (MRC train/eval 용)
     # ----------------------------------------------------------------
     def prepare_mrc_datasets(
         self,
@@ -174,14 +182,14 @@ class ODQAPipeline:
         # Padding 방향 설정
         pad_on_right = self.tokenizer.padding_side == "right"
 
-        # 오류 및 max_seq_length 확인 (한 번만 수행해서 저장)
+        # 오류 및 max_seq_length 확인 (한 번만 수행해서 재사용)
         self.last_checkpoint, self.max_seq_length = check_no_error(
             self.data_args, self.training_args, datasets, self.tokenizer
         )
         max_seq_length = self.max_seq_length
 
         # -------------------------------
-        # Train 전처리
+        #   - Train 전처리
         # -------------------------------
         def prepare_train_features(examples):
             tokenized_examples = self.tokenizer(
@@ -263,7 +271,7 @@ class ODQAPipeline:
             )
 
         # -------------------------------
-        # Validation / Inference 전처리
+        #   - Validation / Inference 전처리
         # -------------------------------
         def prepare_validation_features(examples):
             tokenized_examples = self.tokenizer(
@@ -311,7 +319,7 @@ class ODQAPipeline:
         return train_dataset, eval_dataset, eval_examples
 
     # ----------------------------------------------------------------
-    # 4. Trainer 생성
+    #   - Trainer 생성
     # ----------------------------------------------------------------
     def create_trainer(
         self,
@@ -342,20 +350,19 @@ class ODQAPipeline:
             )
 
         def compute_metrics(p) -> Dict:
-            # p는 post_processing_function이 반환한 OrderedDict입니다
-            # EvalPrediction 객체가 아닙니다
+            # p는 post_processing_function이 반환한 OrderedDict
             if isinstance(p, dict):
                 # OrderedDict를 SQuAD 형식으로 변환
                 formatted_predictions = [
                     {"id": k, "prediction_text": v} for k, v in p.items()
                 ]
-                # eval_examples에서 정답지 가져오기
+                # eval_examples에서 GT 가져오기
                 references = []
                 for ex in eval_examples:
                     answers = ex.get("answers")
-                    # answers가 None이거나 비어있는 경우 (test dataset)
+                    # answers가 None이거나 비어있는 경우 (test dataset 인 경우)
                     if answers is None:
-                        # SQuAD 형식의 빈 답변으로 설정
+                        # SQuAD 형식의 " " (공백)
                         references.append({
                             "id": ex["id"], 
                             "answers": {"text": [], "answer_start": []}
@@ -366,7 +373,7 @@ class ODQAPipeline:
                             "answers": answers
                         })
                 
-                # 모든 references가 빈 답변인 경우 (test dataset) metric 계산 건너뜀
+                # 모두 빈 답변인 경우 metric 계산 건너뜀 (tets dataset 이므로)
                 if all(ref["answers"]["text"] == [] for ref in references):
                     logger.warning("정답이 없는 test dataset입니다. Metric 계산을 건너뜁니다.")
                     return {}
@@ -376,7 +383,7 @@ class ODQAPipeline:
                     references=references
                 )
             else:
-                # EvalPrediction 객체인 경우 (기존 방식)
+                # EvalPrediction 객체인 경우
                 return squad_metric.compute(
                     predictions=p.predictions, 
                     references=p.label_ids
@@ -397,7 +404,7 @@ class ODQAPipeline:
         return self.trainer
 
     # ----------------------------------------------------------------
-    # 5. ODQA용 Retrieval
+    #      - ODQA용 Retrieval
     # ----------------------------------------------------------------
     def retrieve_for_odqa(
         self,
@@ -418,13 +425,12 @@ class ODQAPipeline:
                 return queries
 
         # retriever가 공통으로 제공하는 build_index / retrieve 사용
-        # (SparseRetrieval은 내부적으로 TF-IDF, DenseRetrieval은 transformer encoder 사용)
         if getattr(self.retriever, "p_embedding", None) is None:
             self.retriever.build_index()
         return self.retriever.retrieve(queries, topk=self.retrieval_args.top_k)
 
     # ----------------------------------------------------------------
-    # 6. ODQA End-to-End 인퍼런스 (질문 → 답변 텍스트)
+    #      - ODQA End-to-End 인퍼런스 (질문 → 답변 텍스트)
     # ----------------------------------------------------------------
     def answer(
         self,
@@ -469,22 +475,18 @@ class ODQAPipeline:
         # predictions 는 post_processing_function의 반환값 형식
 
         # 5) 단일 질문에 대한 최상위 답변만 추려서 반환 형식 통일
-        #    (기본 predictions는 {id: text} dict 리스트/구조 등일 수 있음)
         return {
             "question": question,
-            "answers": predictions,  # 후속 단계에서 필요한 형태에 맞게 가공 가능
+            "answers": predictions,  
             "passages": passages,
             "scores": doc_scores,
         }
 
     # ----------------------------------------------------------------
-    # 7. MRC 학습 / ODQA 평가 (선택)
+    #      - MRC 학습 / ODQA 평가
     # ----------------------------------------------------------------
     def train_mrc(self, datasets: DatasetDict) -> None:
-        """
-        MRC 학습 전용.
-        - 기존 train.py의 run_mrc(do_train 부분)를 이 메서드로 옮겨오는 형태.
-        """
+
         train_dataset, eval_dataset, eval_examples = self.prepare_mrc_datasets(
             datasets
         )
@@ -534,7 +536,7 @@ class ODQAPipeline:
 
     def evaluate_odqa(self, datasets: DatasetDict) -> Dict[str, float]:
         """
-        ODQA 평가용 (질문 + 정답 + wiki context 있는 validation 셋 기준).
+        ODQA 평가용 (질문 + 정답 + wiki context 있는 validation dataset 기준).
         - 각 질문에 대해 retrieve → reader → metric 계산까지.
         """
         from datasets import Dataset as HFDataset, Features, Sequence, Value
@@ -561,26 +563,24 @@ class ODQAPipeline:
         logger.info("Running retrieval for ODQA evaluation...")
         
         # 인덱스 생성 후 validation 질문 기준으로 검색 수행
-        # (HybridRetrieval인 경우 build_index 메서드를 호출하도록 구현되어 있어야 함)
         if getattr(self.retriever, "build_index", None):
              self.retriever.build_index()
         elif getattr(self.retriever, "p_embedding", None) is None:
              # Sparse/Dense 등 개별 리트리버의 경우
-             # (단, SparseRetrieval의 경우 get_sparse_embedding 이름일 수 있음)
              if hasattr(self.retriever, "get_sparse_embedding"):
                  self.retriever.get_sparse_embedding()
              elif hasattr(self.retriever, "build_index"):
                  self.retriever.build_index()
 
         # =========================================================
-        # Hybrid Retrieval일 경우 alpha 값 전달
+        #   - Hybrid Retrieval일 경우 alpha 값 전달
         # =========================================================
         if self.retrieval_args.retrieval_type == "hybrid":
             logger.info(f"Using Hybrid Retrieval with alpha={self.retrieval_args.alpha}")
             df = self.retriever.retrieve(
                 datasets["validation"], 
                 topk=self.retrieval_args.top_k,
-                alpha=self.retrieval_args.alpha  # <--- alpha 인자 추가
+                alpha=self.retrieval_args.alpha  # hybrid ratio
             )
         else:
             df = self.retriever.retrieve(
@@ -593,7 +593,7 @@ class ODQAPipeline:
         if "original_context" in df.columns:
             df = df.drop(columns=["original_context"])
 
-        # 2) DataFrame → HF Dataset 변환 (정답 포함)
+        # 2) DataFrame → HF Dataset 변환
         features = Features(
             {
                 "answers": Sequence(
@@ -622,7 +622,7 @@ class ODQAPipeline:
             eval_examples=eval_examples,
         )
 
-        # 정답이 있는지 확인 (test dataset은 answers가 없음)
+        # 정답이 있는지 확인
         has_answers = (
             eval_examples is not None 
             and "answers" in eval_examples.column_names
@@ -635,7 +635,7 @@ class ODQAPipeline:
         )
         
         if not has_answers:
-            # 정답이 없는 경우 (do_predict) - predict만 수행
+            # 정답이 없는 경우 (do_predict)
             logger.info("*** Predict (ODQA) - 정답이 없어 metric 계산을 건너뜁니다 ***")
             predictions = self.trainer.predict(
                 test_dataset=eval_dataset,
@@ -644,7 +644,7 @@ class ODQAPipeline:
             logger.info("*** Predict 완료 - predictions.json이 저장되었습니다 ***")
             return {"status": "predictions_saved", "num_samples": len(eval_dataset) if eval_dataset is not None else 0}
         
-        # 정답이 있는 경우 (do_eval) - evaluate 수행
+        # 정답이 있는 경우 (do_eval)
         logger.info("*** Evaluate (ODQA) ***")
         metrics = self.trainer.evaluate()
         metrics["eval_samples"] = len(eval_dataset) if eval_dataset is not None else 0

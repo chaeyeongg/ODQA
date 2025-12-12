@@ -1,3 +1,9 @@
+"""
+train_dense.py 실행을 위한 hard_negatives.json 생성용 코드
+
+BM25로 train dataset의 Question별 문서 후보를 가져와서 GT와 유사하지 않은 문서를 Hard Negative로 저장합니다.
+"""
+
 import json
 import os
 import logging
@@ -6,11 +12,10 @@ from tqdm import tqdm
 from datasets import load_from_disk, load_dataset, DatasetDict
 from transformers import AutoTokenizer, HfArgumentParser
 
-# 같은 폴더 내 모듈 import
 from .retrieval import BM25Retrieval
-from .arguments import MiningArguments  # 새로 추가한 dataclass import
+from .arguments import MiningArguments
 
-# 로거 설정
+# logger 설정
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
@@ -19,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def main():
-    # 1. Arguments 파싱 (argparse -> HfArgumentParser로 변경)
+    # 1. Arguments 파싱
     parser = HfArgumentParser((MiningArguments,))
     # 명령줄 인자를 dataclass로 변환
     mining_args, = parser.parse_args_into_dataclasses()

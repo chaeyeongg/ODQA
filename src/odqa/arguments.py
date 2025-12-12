@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 
 
+# 모델 인자값 설정
 @dataclass
 class ModelArguments:
     """
@@ -28,6 +29,7 @@ class ModelArguments:
     )
 
 
+# 데이터셋 인자값 설정
 @dataclass
 class DataTrainingArguments:
     """
@@ -79,7 +81,7 @@ class DataTrainingArguments:
         metadata={"help": "Whether to run passage retrieval using sparse embedding."},
     )
 
-
+# Retrieval 모델 인자값 설정
 @dataclass
 class RetrievalArguments:
     """
@@ -111,12 +113,15 @@ class RetrievalArguments:
     retrieval_type: str = field(
         default="sparse",
         metadata={
-            "help": "Retrieval method to use: 'sparse' or 'dense' or 'bm25' or  'hybrid. "
+            "help": "Retrieval method to use: 'sparse' or 'dense' or 'bm25' or  'hybrid'. "
             "Additional methods can be added as needed."
         },
     )
     dense_model_name_or_path: Optional[str] = field(
+        # finenuned dense 있는 경우
         default="./outputs/dense_retriever_finetuned",
+        # finenuned dense 없는 경우
+        # default="dragonkue/BGE-m3-ko",
         metadata={
             "help": "Model name or path to use for dense retrieval. "
             "If None and retrieval_type='dense', falls back to model_name_or_path."
@@ -138,7 +143,7 @@ class RetrievalArguments:
     )
     
 
-
+# mining.py 인자값 설정 (train_dense.py 실행을 위한 학습 파일 생성)
 @dataclass
 class MiningArguments:
     """
@@ -174,7 +179,7 @@ class MiningArguments:
         metadata={"help": "Number of hard negatives to save per query"},
     )
 
-
+# train_dense.py 인자값 설정
 @dataclass
 class DenseTrainArguments:
     model_name_or_path: str = field(
@@ -190,10 +195,45 @@ class DenseTrainArguments:
         metadata={"help": "Directory to save the fine-tuned model"}
     )
     num_epochs: int = field(default=3)
-    batch_size: int = field(default=4)  # GPU 메모리에 맞춰 조절 (BGE-large 계열은 작게)
+    batch_size: int = field(default=4)
     learning_rate: float = field(default=2e-5)
     max_seq_length: int = field(default=512)
     use_instruction: bool = field(
-        default=True, 
+        default=True,
         metadata={"help": "Add BGE instruction prefix to queries"}
+    )
+
+
+# ensemble.py 인자값 설정
+@dataclass
+class EnsembleArguments:
+    """
+    Arguments for ensemble prediction
+    """
+
+    model_dirs: List[str] = field(
+        default_factory=list,
+        metadata={
+            "help": "Input files path (e.g., outputs/nbest1.json outputs/pred2.csv)"
+        },
+    )
+
+    weights: Optional[List[float]] = field(
+        default=None,
+        metadata={
+            "help": "Weights for each model (e.g. 1.0 1.5 1.0). Must match the order of --model_dirs"
+        },
+    )
+
+    output_dir: str = field(
+        default="./outputs/ensemble_result",
+        metadata={"help": "Output directory"},
+    )
+
+    strategy: str = field(
+        default="hard",
+        metadata={
+            "help": "Ensemble strategy",
+            "choices": ["soft", "hard"]
+        },
     )

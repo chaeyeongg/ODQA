@@ -170,7 +170,6 @@ wandb login YOUR_WANDB_TOKEN
 - PyTorch >= 1.9
 - Transformers >= 4.21
 - Datasets >= 2.0
-- FAISS (CPU/GPU)
 - WandB (선택사항)
 
 ## 🤝 Contributing

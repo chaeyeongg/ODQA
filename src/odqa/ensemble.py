@@ -1,9 +1,13 @@
-import argparse
 import json
 import os
 import pandas as pd
 from collections import defaultdict
 from tqdm import tqdm
+from typing import Optional
+
+from transformers import HfArgumentParser
+
+from arguments import EnsembleArguments
 
 def custom_read_csv(filepath):
     """
@@ -93,7 +97,7 @@ def soft_voting(model_dirs, weights):
     # 데이터 개수와 가중치 개수 검증
     if len(nbest_preds_list) != len(weights):
         print(f"Warning: Loaded models ({len(nbest_preds_list)}) != Weights ({len(weights)})")
-        # 개수 안 맞으면 앞쪽부터 맞추거나 1.0 처리 (여기선 에러 대신 안전하게 slice)
+        # 개수 안 맞으면 앞쪽부터 맞추거나 1.0 처리
         weights = weights[:len(nbest_preds_list)]
 
     keys = list(nbest_preds_list[0].keys())
@@ -102,7 +106,7 @@ def soft_voting(model_dirs, weights):
     for key in tqdm(keys, desc="Weighted Soft Voting"):
         candidate_scores = defaultdict(float)
         
-        # [수정됨] enumerate를 사용해 해당 모델의 weight를 가져옴
+        # enumerate를 사용해 해당 모델의 weight를 가져옴
         for i, model_preds in enumerate(nbest_preds_list):
             if key not in model_preds: continue
             
@@ -125,43 +129,54 @@ def soft_voting(model_dirs, weights):
 
 def hard_voting(model_dirs, weights):
     """
-    Hard Voting: (투표 수 * 가중치) 합산
+    Hard Voting: pandas DataFrame 기반 가중치 적용
     """
     preds_list = load_predictions(model_dirs, strategy="hard")
-    
+
     if not preds_list:
         raise ValueError("No valid prediction files found!")
 
+    # 데이터 개수와 가중치 개수 검증
     if len(preds_list) != len(weights):
         print(f"Warning: Loaded models ({len(preds_list)}) != Weights ({len(weights)})")
         weights = weights[:len(preds_list)]
 
-    all_ids = set().union(*[d.keys() for d in preds_list])
-    final_predictions = {}
-    
-    for q_id in tqdm(all_ids, desc="Weighted Hard Voting"):
+    # ---- 모든 모델 결과를 id 기준 병합 (DataFrame 방식) ----
+    dfs = []
+    for i, preds in enumerate(preds_list):
+        df = pd.DataFrame(list(preds.items()), columns=['id', f'model_{i}'])
+        dfs.append(df)
+
+    # id 기준으로 모든 모델 결과 병합
+    merged = dfs[0]
+    for df in dfs[1:]:
+        merged = merged.merge(df, on='id', how='outer')
+
+    # ---- 가중치 적용 Hard Voting 함수 ----
+    def weighted_hard_vote(row):
         vote_scores = defaultdict(float)
-        
-        # [수정됨] enumerate로 가중치 적용
-        for i, model_preds in enumerate(preds_list):
-            w = weights[i]
-            if q_id in model_preds:
-                pred = model_preds[q_id]
-                if pred:
-                    # 한 표를 던질 때 가중치만큼 점수가 올라감 (1표가 아니라 1.5표 등)
-                    vote_scores[pred] += 1.0 * w
-        
+
+        # 각 모델의 예측에 가중치 적용
+        for i, model_col in enumerate(merged.columns[1:]):  # id 컬럼 제외
+            pred = row[model_col]
+            if pd.notna(pred) and pred.strip():  # 유효한 예측값만 처리
+                vote_scores[pred.strip()] += weights[i]
+
         if not vote_scores:
-            final_predictions[q_id] = ""
-            continue
-            
-        # 가장 높은 점수를 얻은 답변 선택
-        best_answer = max(vote_scores, key=vote_scores.get)
-        final_predictions[q_id] = best_answer
-        
+            return ""
+
+        # 가장 높은 가중치를 받은 답변 선택
+        return max(vote_scores, key=vote_scores.get)
+
+    # 각 행에 hard voting 적용
+    merged["prediction"] = merged.apply(weighted_hard_vote, axis=1)
+
+    # 결과를 dictionary로 변환
+    final_predictions = dict(zip(merged['id'], merged['prediction']))
+
     return final_predictions
 
-def main(args):
+def main(args: EnsembleArguments):
     # 가중치 설정 (입력 없으면 모두 1.0)
     if args.weights:
         weights = [float(w) for w in args.weights]
@@ -170,13 +185,15 @@ def main(args):
         
     print(f"Ensemble Weights: {weights}")
 
+    # Soft or Hard Voting Start
     if args.strategy == "soft":
         print("=== Starting Weighted Soft Voting ===")
         final_result = soft_voting(args.model_dirs, weights)
     else:
         print("=== Starting Weighted Hard Voting ===")
         final_result = hard_voting(args.model_dirs, weights)
-        
+    
+    # Outputs path
     os.makedirs(args.output_dir, exist_ok=True)
     
     # JSON 저장
@@ -188,43 +205,13 @@ def main(args):
     # CSV 저장 (제출용)
     csv_output_path = os.path.join(args.output_dir, "predictions_submit.csv")
     df = pd.DataFrame(list(final_result.items()), columns=['id', 'prediction'])
-    # Header 제외, 탭 분리
+    # Header 제외, 탭으로 Seperate
     df.to_csv(csv_output_path, index=False, header=False, sep='\t')
     
     print(f"Saved CSV to {csv_output_path} (No Header, Tab Separated)")
     print("=== Ensemble Complete! ===")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    
-    parser.add_argument(
-        "--model_dirs", 
-        nargs="+", 
-        required=True, 
-        help="Input files path (e.g., outputs/nbest1.json outputs/pred2.csv)"
-    )
-    
-    # [추가됨] 가중치 인자
-    parser.add_argument(
-        "--weights", 
-        nargs="+", 
-        help="Weights for each model (e.g. 1.0 1.5 1.0). Must match the order of --model_dirs"
-    )
-    
-    parser.add_argument(
-        "--output_dir", 
-        type=str, 
-        default="./outputs/ensemble_result", 
-        help="Output directory"
-    )
-    
-    parser.add_argument(
-        "--strategy", 
-        type=str, 
-        default="hard", 
-        choices=["soft", "hard"],
-        help="Ensemble strategy"
-    )
-    
-    args = parser.parse_args()
+    parser = HfArgumentParser(EnsembleArguments)
+    args = parser.parse_args_into_dataclasses()[0]
     main(args)

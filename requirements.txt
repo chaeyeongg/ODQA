@@ -5,9 +5,6 @@ accelerate==0.32.1
 pandas==2.3.3
 evaluate==0.4.6
 
-# faiss install (if you want to)
-faiss-gpu
-
 wandb
 datasets
 rank-bm25

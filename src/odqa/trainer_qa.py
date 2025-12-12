@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Question-Answering task와 관련된 'Trainer'의 subclass 코드 입니다.
+Question-Answering task와 관련된 'Trainer'의 subclass 코드
 """
 
 from transformers import Trainer, is_datasets_available
@@ -28,7 +28,7 @@ if is_torch_xla_available():
     import torch_xla.debug.metrics as met
 
 
-# Huggingface의 Trainer를 상속받아 QuestionAnswering을 위한 Trainer를 생성합니다.
+# Huggingface의 Trainer를 상속받아 QuestionAnswering을 위한 Trainer 생성
 from transformers import Trainer
 
 class QuestionAnsweringTrainer(Trainer):
@@ -46,11 +46,11 @@ class QuestionAnsweringTrainer(Trainer):
         callbacks=None,
         **kwargs,  
     ):
-        # ⚠️ 핵심 수정: 부모 클래스 호출 시 반드시 '이름=값' 형태로 넘겨야 순서가 안 섞입니다.
+
         super().__init__(
             model=model,
             args=args,
-            data_collator=data_collator, # 여기가 명시되어야 model_init 자리에 안 들어갑니다.
+            data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             tokenizer=tokenizer,
@@ -67,15 +67,12 @@ class QuestionAnsweringTrainer(Trainer):
         eval_dataloader = self.get_eval_dataloader(eval_dataset)
         eval_examples = self.eval_examples if eval_examples is None else eval_examples
 
-        # 일시적으로 metric computation를 불가능하게 한 상태이며, 해당 코드에서는 loop 내에서 metric 계산을 수행합니다.
         compute_metrics = self.compute_metrics
         self.compute_metrics = None
         try:
             output = self.prediction_loop(
                 eval_dataloader,
                 description="Evaluation",
-                # metric이 없으면 예측값을 모으는 이유가 없으므로 아래의 코드를 따르게 됩니다.
-                # self.args.prediction_loss_only
                 prediction_loss_only=True if compute_metrics is None else None,
                 ignore_keys=ignore_keys,
             )
@@ -99,7 +96,6 @@ class QuestionAnsweringTrainer(Trainer):
             metrics = {}
 
         if self.args.tpu_metrics_debug or self.args.debug:
-            # tpu-comment: PyTorch/XLA에 대한 Logging debug metrics (compile, execute times, ops, etc.)
             xm.master_print(met.metrics_report())
 
         self.control = self.callback_handler.on_evaluate(
@@ -110,16 +106,12 @@ class QuestionAnsweringTrainer(Trainer):
     def predict(self, test_dataset, test_examples, ignore_keys=None):
         test_dataloader = self.get_test_dataloader(test_dataset)
 
-        # 일시적으로 metric computation를 불가능하게 한 상태이며, 해당 코드에서는 loop 내에서 metric 계산을 수행합니다.
-        # evaluate 함수와 동일하게 구성되어있습니다
         compute_metrics = self.compute_metrics
         self.compute_metrics = None
         try:
             output = self.prediction_loop(
                 test_dataloader,
                 description="Evaluation",
-                # metric이 없으면 예측값을 모으는 이유가 없으므로 아래의 코드를 따르게 됩니다.
-                # self.args.prediction_loss_only
                 prediction_loss_only=True if compute_metrics is None else None,
                 ignore_keys=ignore_keys,
             )
